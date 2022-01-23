@@ -5,16 +5,41 @@ import Big from 'big.js';
 import Form from './components/Form';
 import SignIn from './components/SignIn';
 import Messages from './components/Messages';
+import { v4 as uuidV4 } from 'uuid';
 
 const SUGGESTED_DONATION = '0';
 const BOATLOAD_OF_GAS = Big(3).times(10 ** 13).toFixed();
 
 const App = ({ contract, currentUser, nearConfig, wallet }) => {
   const [messages, setMessages] = useState([]);
+  const [isMine, setIsMine] = useState(false);
+
 
   useEffect(() => {
-    // TODO: don't just fetch once; subscribe!
-    contract.getMessages().then(setMessages);
+    (async () => {
+      try {
+
+        let user = window.location.hash.split("#")[1];
+
+        console.log(window.location.hash.split("#")[1])
+
+        if (user == currentUser.accountId) {
+          setIsMine(true);
+        }
+
+        let messages = await contract.getMessagesFrom({
+          user: user || currentUser.accountId,
+          length: 0,
+        });
+
+        console.log(messages, currentUser.accountId);
+
+        setMessages(messages);
+      } catch (error) {
+        console.log(error);
+        console.log(currentUser.accountId);
+      }
+    })();
   }, []);
 
   const onSubmit = (e) => {
@@ -27,12 +52,17 @@ const App = ({ contract, currentUser, nearConfig, wallet }) => {
     // TODO: optimistically update page with new message,
     // update blockchain data in background
     // add uuid to each message, so we know which one is already known
-    contract.addMessage(
-      { text: message.value },
+    contract.sendMessage(
+      { message: message.value, id: uuidV4() },
       BOATLOAD_OF_GAS,
       Big(donation.value || '0').times(10 ** 24).toFixed()
     ).then(() => {
-      contract.getMessages().then(messages => {
+      contract.getMessagesFrom(
+        {
+          user: currentUser.accountId,
+          length: 0
+        },
+      ).then(messages => {
         setMessages(messages);
         message.value = '';
         donation.value = SUGGESTED_DONATION;
@@ -44,7 +74,8 @@ const App = ({ contract, currentUser, nearConfig, wallet }) => {
 
   const signIn = () => {
     wallet.requestSignIn(
-      {contractId: nearConfig.contractName, methodNames: [contract.addMessage.name]}, //contract requesting access
+      // { contractId: nearConfig.contractName, methodNames: [contract.sendMessage.name, contract.likeUnlikePost.name] }, //contract requesting access
+      { contractId: nearConfig.contractName, methodNames: [contract.sendMessage.name, contract.likeUnlike.name, contract.deleteMessage.name, contract.createUsers.name, contract.follow.name, contract.unFollow.name,] }, //contract requesting access
       'NEAR Guest Book', //optional name
       null, //optional URL to redirect to if the sign in was successful
       null //optional URL to redirect to if the sign in was NOT successful
@@ -60,16 +91,16 @@ const App = ({ contract, currentUser, nearConfig, wallet }) => {
     <main>
       <header>
         <h1>NEAR Guest Book</h1>
-        { currentUser
+        {currentUser
           ? <button onClick={signOut}>Log out</button>
           : <button onClick={signIn}>Log in</button>
         }
       </header>
-      { currentUser
+      {currentUser
         ? <Form onSubmit={onSubmit} currentUser={currentUser} />
-        : <SignIn/>
+        : <SignIn />
       }
-      { !!currentUser && !!messages.length && <Messages messages={messages}/> }
+      {!!currentUser && !!messages?.length && <Messages messages={messages} user={currentUser.accountId} contract={contract} />}
     </main>
   );
 };

@@ -1,5 +1,5 @@
 import { addMessage, getMessages } from '../main';
-import { PostedMessage, messages } from '../model';
+import { PostedMessage, messages } from '../model-1';
 import { VMContext, Context, u128 } from 'near-sdk-as';
 
 function createMessage(text: string): PostedMessage {
